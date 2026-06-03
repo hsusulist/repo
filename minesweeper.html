@@ -55,6 +55,7 @@
             background-color: #bbb;
             border: 2px solid #999;
             margin: 0 auto;
+            transition: transform 0.1s;
         }
 
         .cell {
@@ -113,6 +114,16 @@
         button:hover {
             background-color: #025aa5;
         }
+        
+        .demon-warning {
+            animation: pulse 0.5s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
     </style>
 </head>
 <body>
@@ -143,6 +154,9 @@
         let timerInterval;
         let timeElapsed = 0;
         let firstClick = true;
+        let demonMode = false;
+        let demonInterval;
+        let revealedNumbers = []; // Track revealed number cells
 
         const gridElement = document.getElementById('grid');
         const statusElement = document.getElementById('status');
@@ -156,10 +170,13 @@
             flags = 0;
             timeElapsed = 0;
             firstClick = true;
+            demonMode = false;
+            revealedNumbers = [];
             statusElement.textContent = '';
             timerElement.textContent = '0';
             mineCountElement.textContent = MINES_COUNT;
             clearInterval(timerInterval);
+            clearInterval(demonInterval);
             
             // Create Grid UI
             gridElement.innerHTML = '';
@@ -185,7 +202,8 @@
                         isMine: false,
                         revealed: false,
                         flagged: false,
-                        count: 0
+                        count: 0,
+                        numberVisible: true // For demon mode
                     });
                 }
                 grid.push(row);
@@ -229,7 +247,53 @@
             timerInterval = setInterval(() => {
                 timeElapsed++;
                 timerElement.textContent = timeElapsed;
+                
+                // Start Demon Mode after 5 seconds
+                if (timeElapsed === 5 && !demonMode) {
+                    startDemonMode();
+                }
             }, 1000);
+        }
+        
+        function startDemonMode() {
+            demonMode = true;
+            statusElement.textContent = '⚠️ DEMON MODE ACTIVATED! ⚠️';
+            statusElement.style.color = '#ff0000';
+            
+            // Every 5 seconds, randomly hide/show numbers
+            demonInterval = setInterval(() => {
+                if (gameOver) return;
+                
+                // Flash effect on grid
+                gridElement.style.transform = 'scale(0.98)';
+                setTimeout(() => {
+                    gridElement.style.transform = 'scale(1)';
+                }, 100);
+                
+                // Randomly toggle visibility of revealed numbers
+                for (let r = 0; r < ROWS; r++) {
+                    for (let c = 0; c < COLS; c++) {
+                        const cellData = grid[r][c];
+                        if (cellData.revealed && cellData.count > 0 && !cellData.isMine) {
+                            // 40% chance to toggle visibility
+                            if (Math.random() < 0.4) {
+                                cellData.numberVisible = !cellData.numberVisible;
+                                updateCellVisibility(cellData);
+                            }
+                        }
+                    }
+                }
+            }, 5000);
+        }
+        
+        function updateCellVisibility(cellData) {
+            if (cellData.numberVisible) {
+                cellData.element.textContent = cellData.count;
+                cellData.element.classList.add(`c-${cellData.count}`);
+            } else {
+                cellData.element.textContent = '';
+                cellData.element.classList.remove(`c-${cellData.count}`);
+            }
         }
 
         function handleClick(r, c) {
@@ -250,6 +314,7 @@
                 cellData.element.textContent = '💣';
                 statusElement.textContent = 'Game Over! You hit a mine.';
                 clearInterval(timerInterval);
+                clearInterval(demonInterval);
             } else {
                 revealCell(r, c);
                 checkWin();
@@ -284,8 +349,9 @@
             cellData.element.classList.add('revealed');
 
             if (cellData.count > 0) {
-                cellData.element.textContent = cellData.count;
-                cellData.element.classList.add(`c-${cellData.count}`);
+                // Store number and set visibility
+                cellData.numberVisible = true;
+                updateCellVisibility(cellData);
             } else {
                 // Flood fill for empty cells
                 for (let dr = -1; dr <= 1; dr++) {
@@ -320,6 +386,7 @@
                 statusElement.textContent = 'Congratulations! You Won! 🎉';
                 statusElement.style.color = 'green';
                 clearInterval(timerInterval);
+                clearInterval(demonInterval);
                 // Flag all mines visually
                 for (let r = 0; r < ROWS; r++) {
                     for (let c = 0; c < COLS; c++) {
